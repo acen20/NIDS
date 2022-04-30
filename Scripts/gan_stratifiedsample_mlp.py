@@ -435,6 +435,7 @@ for epochs in epochs_:
       wandb.config["lr"] = lr
       wandb.config["batch_size"] = batch_size
       wandb.config["epochs"] = epochs
+      wandb.config["group"] = "MLP_GAN"
       print('===============================================')
       print(f"Batch Size:{batch_size}\tEpochs:{epochs}\tLR:{lr}")
       num_epochs = epochs
