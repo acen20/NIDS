@@ -479,7 +479,7 @@ for i,score in enumerate(grid_scores):
 end_time = time.time()
 print("=====================================")
 print(f'Total time taken: {int(end_time-start_time)} seconds')
-print(f'Best scores with\n{grid_scores[highest]['config']}')
+print(f'Best scores with\n{grid_scores[highest]["config"]}')
 
 plt.plot(losses)
 plt.xlabel(f"epochs({num_epochs})")

@@ -338,7 +338,7 @@ for epochs in epochs_:
       optimizer = torch.optim.SGD(mlp.parameters(), lr = lr)
       
       #Training Loop
-      run = wandb.init(entity='ahsen', project='nids', name=f'MLP_{iters}', reinit=True)
+      run = wandb.init(entity='ahsen', project='nids', name=f'MLP_{iters}', group="MLP", reinit=True)
       wandb.config["lr"] = lr
       wandb.config["batch_size"] = batch_size
       wandb.config["epochs"] = epochs
@@ -383,10 +383,12 @@ for i,score in enumerate(grid_scores):
   if score['config']['acc'] > grid_scores[highest]['config']['acc']:
     highest = i
 
+
+
 end_time = time.time()
 print("=====================================")
 print(f'Total time taken: {int(end_time-start_time)} seconds')
-print(f'Best scores with\n{grid_scores[highest]['config']}')
+print(f'Best scores with\n{grid_scores[highest]["config"]}')
 
 plt.plot(losses)
 plt.xlabel(f"epochs({num_epochs})")
