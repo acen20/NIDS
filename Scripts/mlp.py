@@ -8,7 +8,9 @@ Original file is located at
 """
 
 import os
+exp_num = 1
 os.environ["WANDB_API_KEY"] = "00c5bcfd2b2fbe9bce38152923c98635448f8c6f"
+EXPERIMENT_NAME = f'MLP_{exp_num}'
 
 os.system('mkdir ../dataset') 
 os.system('mkdir ../models')
@@ -273,42 +275,22 @@ pt_x_train.shape, pt_y_train.shape
 
 class MLP(nn.Module):
   data_dim = 41
-  def __init__(self):
+  def __init__(self, hidden_size):
       super(MLP, self).__init__()
       self.mlp = nn.Sequential(
-          nn.Linear(self.data_dim, 80),
+          nn.Linear(self.data_dim, hidden_size),
           nn.ReLU(),
-          nn.BatchNorm1d(80)
+          nn.BatchNorm1d(hidden_size)
       )
-      '''self.cnn = nn.Sequential(
-          nn.Conv1d(1,10,kernel_size = (1,3), stride=1),
-          nn.ReLU(),
-          nn.BatchNorm2d(10),
-          nn.Conv1d(10,10,kernel_size = (1,3), stride=1),
-          nn.ReLU(),
-          nn.BatchNorm2d(10),
-          nn.Conv1d(10,10,kernel_size = (1,3), stride=1),
-          nn.ReLU(),
-          nn.BatchNorm2d(10),
-          nn.Conv1d(10,10,kernel_size = (1,3), stride=1),
-          nn.ReLU(),
-          nn.BatchNorm2d(10),
-          nn.Flatten(),
-          nn.Linear(330, 24),
-          nn.ReLU(),
-      )'''
 
       self.clf = nn.Sequential(
-          nn.Linear(80,2),
+          nn.Linear(hidden_size,2),
           nn.Sigmoid()
       )
 
   def forward(self, x):
       features = self.mlp(x)
       return self.clf(features)
-
-  def transform(self, x):
-      return self.cnn(x)
 
 def validation_accuracy(model, X, y):
   model.eval()
@@ -319,8 +301,9 @@ def validation_accuracy(model, X, y):
   model.train()
   return acc
 
-batch_sizes = [32, 64, 128, 256]
-epochs_ = [25, 40, 55, 70]
+hidden_sizes = [64, 80, 128, 256]
+batch_sizes = [64, 128, 256]
+epochs_ = [50, 75, 100]
 learning_rates = [1e-3, 1e-2, 1e-1]
 
 start_time = time.time()
@@ -328,76 +311,84 @@ start_time = time.time()
 grid_scores = []
 iters = 0
 #Creating a Grid Search
-for epochs in epochs_:
-  for lr in learning_rates:
-    for batch_size in batch_sizes:
-      #Model init
-      pt_train = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
-      mlp = MLP().to(device)
-      criterion = nn.BCELoss()
-      optimizer = torch.optim.SGD(mlp.parameters(), lr = lr)
-      
-      #Training Loop
-      run = wandb.init(entity='ahsen', project='nids', name=f'MLP_{iters}', group="MLP", reinit=True)
-      wandb.config["lr"] = lr
-      wandb.config["batch_size"] = batch_size
-      wandb.config["epochs"] = epochs
-      print('===============================================')
-      print(f"Batch Size:{batch_size}\tEpochs:{epochs}\tLR:{lr}")
-      num_epochs = epochs
-      outputs = []
-      losses = []
-      for epoch in range(num_epochs):
-          for instance, y in pt_train:
-              output = mlp(instance)
-              loss = criterion(output, y)
-              optimizer.zero_grad()
-              loss.backward()
-              optimizer.step()
-          losses.append(loss.item())
-          acc = validation_accuracy(mlp, X_test, y_test)
-          wandb.log({'loss':loss.item()})
-          print('------------------------------------------------')
-          print(f'Epoch:{epoch+1}  \tLoss:{loss.item():.4f}\t Acc: {acc:.4f}')
+for hidden_size in hidden_sizes:
+  for epochs in epochs_:
+    for lr in learning_rates:
+      for batch_size in batch_sizes:
+        #Model init
+        pt_train = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
+        mlp = MLP(hidden_size).to(device)
+        criterion = nn.BCELoss()
+        optimizer = torch.optim.SGD(mlp.parameters(), lr = lr)
+        
+        #Training Loop
+        run = wandb.init(entity='ahsen', project='nids', name=f'{EXPERIMENT_NAME}_{iters}', group=EXPERIMENT_NAME, reinit=True)
+        wandb.config["lr"] = lr
+        wandb.config["batch_size"] = batch_size
+        wandb.config["epochs"] = epochs
+        wandb.config["hidden_size"] = hidden_size
+        print('========================================================')
+        print(f"Hidden Size:{hidden_size}\tEpochs:{epochs}\tLR:{lr}\tBatch Size:{batch_size}")
+        num_epochs = epochs
+        losses = []
+        for epoch in range(num_epochs):
+            for instance, y in pt_train:
+                output = mlp(instance)
+                loss = criterion(output, y)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+            losses.append(loss.item())
+            acc = validation_accuracy(mlp, X_test, y_test)
+            wandb.log({'loss':loss.item()})
+            print('------------------------------------------------')
+            print(f'Epoch:{epoch+1}  \tLoss:{loss.item():.4f}\t Acc: {acc:.4f}')
 
-      print("*************************************************")
-      print(f'Final Score for (B:{batch_size}, Ep:{epochs}, LR:{lr})')
-      print(f'Acc: {acc:.4f}')
-      #Save scores
-      obj = {
-        "config":{
-          "learning_rate": lr,
-          "epochs": epochs,
-          "batch_size": batch_size,
-          "acc": acc,
-          },
-        "weights": mlp.state_dict()
-      }
-      wandb.log({"acc" : acc})
-      run.finish()
-      grid_scores.append(obj)
-      iters = iters + 1
+        print("*************************************************")
+        print(f'Final Score for (H:{hidden_size}, Ep:{epochs}, LR:{lr}, B:{batch_size})')
+        print(f'Acc: {acc:.4f}')
+        #Save scores
+        obj = {
+          "name":f'{EXPERIMENT_NAME}_{iters}',
+          "config":{
+            "learning_rate": lr,
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "acc": acc,
+            "hidden_size": hidden_size
+            },
+          "weights": mlp.state_dict(),
+          "losses": losses
+        }
+        wandb.log({"acc" : acc})
+        run.finish()
+        grid_scores.append(obj)
+        elapsed = time.time() - start_time
+        print(f'Time Elapsed:\t{elapsed:.0f} seconds')
+        iters = iters + 1
 
 highest = 0
 for i,score in enumerate(grid_scores):
   if score['config']['acc'] > grid_scores[highest]['config']['acc']:
     highest = i
 
-
-
 end_time = time.time()
 print("=====================================")
 print(f'Total time taken: {int(end_time-start_time)} seconds')
-print(f'Best scores with\n{grid_scores[highest]["config"]}')
+print(f'Best scores with:\t{grid_scores[highest]["name"]}')
+print(f'{grid_scores[highest]["config"]}')
 
+losses = grid_scores[highest]['losses']
+num_epochs = grid_scores[highest]['config']['epochs']
 plt.plot(losses)
 plt.xlabel(f"epochs({num_epochs})")
 plt.ylabel(f"loss")
 _ = plt.legend(['Loss'])
 
+mlp = MLP(grid_scores[highest]['config']['hidden_size']).to(device)
+mlp.load_state_dict(grid_scores[highest]['weights'])
 mlp.eval()
 with torch.no_grad():
-  #lr_probs = cnn(X_train.view(-1,1,1,41)).detach().squeeze()
   lr_probs = mlp(X_test).detach().squeeze()
 probs = torch.max(lr_probs, dim=1)
 idxs, scores = probs.indices, probs.values
